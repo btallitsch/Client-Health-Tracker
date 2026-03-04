@@ -1,0 +1,112 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Background layers */
+  --bg-base:    #080c14;
+  --bg-surface: #0d1320;
+  --bg-card:    #111927;
+  --bg-raised:  #16202e;
+  --bg-hover:   #1c2a3a;
+
+  /* Borders */
+  --border:       rgba(255,255,255,0.07);
+  --border-light: rgba(255,255,255,0.04);
+
+  /* Text */
+  --text-primary:   #e8eef5;
+  --text-secondary: #7a92a8;
+  --text-muted:     #4a6070;
+
+  /* Risk colors */
+  --healthy:        #34d399;
+  --healthy-bg:     rgba(52,211,153,0.08);
+  --healthy-border: rgba(52,211,153,0.25);
+
+  --at-risk:        #fbbf24;
+  --at-risk-bg:     rgba(251,191,36,0.08);
+  --at-risk-border: rgba(251,191,36,0.25);
+
+  --critical:        #f87171;
+  --critical-bg:     rgba(248,113,113,0.08);
+  --critical-border: rgba(248,113,113,0.25);
+
+  /* Accent */
+  --accent:     #3b82f6;
+  --accent-bg:  rgba(59,130,246,0.12);
+
+  /* Score segment colors */
+  --score-contact:      #60a5fa;
+  --score-revenue:      #a78bfa;
+  --score-satisfaction: #34d399;
+
+  /* Typography */
+  --font-ui:   'Syne', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Spacing */
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 16px;
+
+  /* Transitions */
+  --transition: 180ms ease;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-raised); border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.85); opacity: 0.5; }
+  70%  { transform: scale(1.1);  opacity: 0; }
+  100% { transform: scale(0.85); opacity: 0; }
+}
+
+.animate-in {
+  animation: fadeIn 0.25s ease both;
+}
+
+/* Utility */
+.mono { font-family: var(--font-mono); }
+
+button {
+  font-family: var(--font-ui);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, select, textarea {
+  font-family: var(--font-ui);
+  outline: none;
+}
