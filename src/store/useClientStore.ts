@@ -1,33 +1,23 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Client, ClientScore, DashboardStats, FilterState, ModalMode, ClientFormData } from '../types';
 import { scoreAllClients } from '../utils/scoring';
 import { SAMPLE_CLIENTS } from '../utils/sampleData';
 import { formatISO } from 'date-fns';
 
 interface ClientStore {
-  // Data
   clients: Client[];
   scores: Map<string, ClientScore>;
-
-  // UI State
   filter: FilterState;
   modalMode: ModalMode;
   selectedClientId: string | null;
-
-  // Derived
   stats: DashboardStats;
-
-  // Actions — Clients
   addClient: (data: ClientFormData) => void;
   updateClient: (id: string, data: ClientFormData) => void;
   deleteClient: (id: string) => void;
-
-  // Actions — UI
   setFilter: (patch: Partial<FilterState>) => void;
   openModal: (mode: ModalMode, clientId?: string) => void;
   closeModal: () => void;
-
-  // Selectors
   getFilteredClients: () => Client[];
   getClientScore: (id: string) => ClientScore | undefined;
   getSelectedClient: () => Client | undefined;
@@ -61,110 +51,90 @@ function generateId(): string {
 
 const initialScores = scoreAllClients(SAMPLE_CLIENTS);
 
-export const useClientStore = create<ClientStore>((set, get) => ({
-  clients: SAMPLE_CLIENTS,
-  scores: initialScores,
-  filter: {
-    riskFilter: 'all',
-    searchQuery: '',
-    sortField: 'totalScore',
-    sortDirection: 'asc',
-  },
-  modalMode: null,
-  selectedClientId: null,
-  stats: computeStats(SAMPLE_CLIENTS, initialScores),
+export const useClientStore = create<ClientStore>()(
+  persist(
+    (set, get) => ({
+      clients: SAMPLE_CLIENTS,
+      scores: initialScores,
+      filter: {
+        riskFilter: 'all',
+        searchQuery: '',
+        sortField: 'totalScore',
+        sortDirection: 'asc',
+      },
+      modalMode: null,
+      selectedClientId: null,
+      stats: computeStats(SAMPLE_CLIENTS, initialScores),
 
-  addClient: (data) => {
-    const now = formatISO(new Date(), { representation: 'date' });
-    const newClient: Client = {
-      ...data,
-      id: generateId(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    const clients = [...get().clients, newClient];
-    const scores = scoreAllClients(clients);
-    set({ clients, scores, stats: computeStats(clients, scores), modalMode: null });
-  },
+      addClient: (data) => {
+        const now = formatISO(new Date(), { representation: 'date' });
+        const newClient: Client = { ...data, id: generateId(), createdAt: now, updatedAt: now };
+        const clients = [...get().clients, newClient];
+        const scores = scoreAllClients(clients);
+        set({ clients, scores, stats: computeStats(clients, scores), modalMode: null });
+      },
 
-  updateClient: (id, data) => {
-    const now = formatISO(new Date(), { representation: 'date' });
-    const clients = get().clients.map(c =>
-      c.id === id ? { ...c, ...data, updatedAt: now } : c
-    );
-    const scores = scoreAllClients(clients);
-    set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
-  },
+      updateClient: (id, data) => {
+        const now = formatISO(new Date(), { representation: 'date' });
+        const clients = get().clients.map(c => c.id === id ? { ...c, ...data, updatedAt: now } : c);
+        const scores = scoreAllClients(clients);
+        set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
+      },
 
-  deleteClient: (id) => {
-    const clients = get().clients.filter(c => c.id !== id);
-    const scores = scoreAllClients(clients);
-    set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
-  },
+      deleteClient: (id) => {
+        const clients = get().clients.filter(c => c.id !== id);
+        const scores = scoreAllClients(clients);
+        set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
+      },
 
-  setFilter: (patch) => {
-    set(state => ({ filter: { ...state.filter, ...patch } }));
-  },
+      setFilter: (patch) => set(state => ({ filter: { ...state.filter, ...patch } })),
+      openModal: (mode, clientId) => set({ modalMode: mode, selectedClientId: clientId ?? null }),
+      closeModal: () => set({ modalMode: null, selectedClientId: null }),
 
-  openModal: (mode, clientId) => {
-    set({ modalMode: mode, selectedClientId: clientId ?? null });
-  },
+      getFilteredClients: () => {
+        const { clients, scores, filter } = get();
+        let filtered = [...clients];
+        if (filter.riskFilter !== 'all') {
+          filtered = filtered.filter(c => scores.get(c.id)?.riskLevel === filter.riskFilter);
+        }
+        if (filter.searchQuery.trim()) {
+          const q = filter.searchQuery.toLowerCase();
+          filtered = filtered.filter(c =>
+            c.name.toLowerCase().includes(q) ||
+            c.company.toLowerCase().includes(q) ||
+            c.industry.toLowerCase().includes(q)
+          );
+        }
+        filtered.sort((a, b) => {
+          let valA: number | string, valB: number | string;
+          if (filter.sortField === 'totalScore') { valA = scores.get(a.id)?.totalScore ?? 0; valB = scores.get(b.id)?.totalScore ?? 0; }
+          else if (filter.sortField === 'name') { valA = a.name; valB = b.name; }
+          else if (filter.sortField === 'lastContactDate') { valA = a.lastContactDate; valB = b.lastContactDate; }
+          else if (filter.sortField === 'monthlyRevenue') { valA = a.monthlyRevenue; valB = b.monthlyRevenue; }
+          else { valA = a.satisfactionRating; valB = b.satisfactionRating; }
+          if (valA < valB) return filter.sortDirection === 'asc' ? -1 : 1;
+          if (valA > valB) return filter.sortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+        return filtered;
+      },
 
-  closeModal: () => {
-    set({ modalMode: null, selectedClientId: null });
-  },
-
-  getFilteredClients: () => {
-    const { clients, scores, filter } = get();
-    let filtered = [...clients];
-
-    // Risk filter
-    if (filter.riskFilter !== 'all') {
-      filtered = filtered.filter(c => scores.get(c.id)?.riskLevel === filter.riskFilter);
+      getClientScore: (id) => get().scores.get(id),
+      getSelectedClient: () => {
+        const { clients, selectedClientId } = get();
+        return clients.find(c => c.id === selectedClientId);
+      },
+    }),
+    {
+      name: 'client-health-tracker',
+      partialize: (state) => ({ clients: state.clients }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const scores = scoreAllClients(state.clients);
+          state.scores = scores;
+          state.stats = computeStats(state.clients, scores);
+        }
+      },
     }
-
-    // Search
-    if (filter.searchQuery.trim()) {
-      const q = filter.searchQuery.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.company.toLowerCase().includes(q) ||
-        c.industry.toLowerCase().includes(q)
-      );
-    }
-
-    // Sort
-    filtered.sort((a, b) => {
-      let valA: number | string, valB: number | string;
-      if (filter.sortField === 'totalScore') {
-        valA = scores.get(a.id)?.totalScore ?? 0;
-        valB = scores.get(b.id)?.totalScore ?? 0;
-      } else if (filter.sortField === 'name') {
-        valA = a.name;
-        valB = b.name;
-      } else if (filter.sortField === 'lastContactDate') {
-        valA = a.lastContactDate;
-        valB = b.lastContactDate;
-      } else if (filter.sortField === 'monthlyRevenue') {
-        valA = a.monthlyRevenue;
-        valB = b.monthlyRevenue;
-      } else {
-        valA = a.satisfactionRating;
-        valB = b.satisfactionRating;
-      }
-
-      if (valA < valB) return filter.sortDirection === 'asc' ? -1 : 1;
-      if (valA > valB) return filter.sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  },
-
-  getClientScore: (id) => get().scores.get(id),
-
-  getSelectedClient: () => {
-    const { clients, selectedClientId } = get();
-    return clients.find(c => c.id === selectedClientId);
-  },
-}));
+  )
+);
