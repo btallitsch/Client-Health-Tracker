@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Users, TrendingUp, AlertTriangle, CheckCircle2,
-  XCircle, Search, Plus, LayoutGrid, List, Activity
+  XCircle, Search, Plus, LayoutGrid, List, Activity, Download
 } from 'lucide-react';
 import { useClientStore } from '../store/useClientStore';
 import { StatCard } from './StatCard';
@@ -9,6 +9,7 @@ import { ClientCard } from './ClientCard';
 import { ClientTable } from './ClientTable';
 import { RiskChart } from './RiskChart';
 import { FilterRisk } from '../types';
+import { exportToCsv } from '../utils/exportCsv';
 
 type ViewMode = 'grid' | 'table';
 
@@ -20,7 +21,7 @@ const RISK_FILTERS: { value: FilterRisk; label: string }[] = [
 ];
 
 export function Dashboard() {
-  const { stats, filter, setFilter, openModal, getFilteredClients, getClientScore } = useClientStore();
+  const { stats, scores, filter, setFilter, openModal, getFilteredClients, getClientScore } = useClientStore();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   const filteredClients = getFilteredClients();
@@ -60,6 +61,31 @@ export function Dashboard() {
             borderRadius: 4, padding: '2px 6px',
           }}>Tracker</span>
         </div>
+
+        <button
+          onClick={() => exportToCsv(filteredClients, scores)}
+          style={{
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+            padding: '7px 14px',
+            fontSize: 12,
+            fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 5,
+            transition: 'color var(--transition), border-color var(--transition)',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = 'var(--text-primary)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'var(--text-secondary)';
+            e.currentTarget.style.borderColor = 'var(--border)';
+          }}
+        >
+          <Download size={13} /> Export CSV
+        </button>
 
         <button
           onClick={() => openModal('add')}
