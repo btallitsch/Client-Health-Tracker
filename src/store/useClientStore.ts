@@ -4,6 +4,7 @@ import { Client, ClientScore, DashboardStats, FilterState, ModalMode, ClientForm
 import { scoreAllClients } from '../utils/scoring';
 import { SAMPLE_CLIENTS } from '../utils/sampleData';
 import { formatISO } from 'date-fns';
+import { saveClient, removeClient, subscribeToClients } from '../utils/syncService';
 
 interface ClientStore {
   clients: Client[];
@@ -18,6 +19,7 @@ interface ClientStore {
   setFilter: (patch: Partial<FilterState>) => void;
   openModal: (mode: ModalMode, clientId?: string) => void;
   closeModal: () => void;
+  syncFromFirestore: () => () => void;
   getFilteredClients: () => Client[];
   getClientScore: (id: string) => ClientScore | undefined;
   getSelectedClient: () => Client | undefined;
@@ -68,28 +70,47 @@ export const useClientStore = create<ClientStore>()(
 
       addClient: (data) => {
         const now = formatISO(new Date(), { representation: 'date' });
-        const newClient: Client = { ...data, id: generateId(), createdAt: now, updatedAt: now };
+        const newClient: Client = {
+          ...data,
+          id: generateId(),
+          createdAt: now,
+          updatedAt: now,
+        };
         const clients = [...get().clients, newClient];
         const scores = scoreAllClients(clients);
         set({ clients, scores, stats: computeStats(clients, scores), modalMode: null });
+        saveClient(newClient); // sync to Firestore
       },
 
       updateClient: (id, data) => {
         const now = formatISO(new Date(), { representation: 'date' });
-        const clients = get().clients.map(c => c.id === id ? { ...c, ...data, updatedAt: now } : c);
+        const clients = get().clients.map(c =>
+          c.id === id ? { ...c, ...data, updatedAt: now } : c
+        );
         const scores = scoreAllClients(clients);
         set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
+        const updated = clients.find(c => c.id === id);
+        if (updated) saveClient(updated); // sync to Firestore
       },
 
       deleteClient: (id) => {
         const clients = get().clients.filter(c => c.id !== id);
         const scores = scoreAllClients(clients);
         set({ clients, scores, stats: computeStats(clients, scores), modalMode: null, selectedClientId: null });
+        removeClient(id); // sync to Firestore
       },
 
       setFilter: (patch) => set(state => ({ filter: { ...state.filter, ...patch } })),
       openModal: (mode, clientId) => set({ modalMode: mode, selectedClientId: clientId ?? null }),
       closeModal: () => set({ modalMode: null, selectedClientId: null }),
+
+      // Start real-time listener — call returned function to stop
+      syncFromFirestore: () => {
+        return subscribeToClients((clients) => {
+          const scores = scoreAllClients(clients);
+          set({ clients, scores, stats: computeStats(clients, scores) });
+        });
+      },
 
       getFilteredClients: () => {
         const { clients, scores, filter } = get();
